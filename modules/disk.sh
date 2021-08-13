@@ -61,6 +61,7 @@ disk_get_part_nums() {
 #  $3 - size (in 512 blocks)
 #  $4 - path to output file
 disk_extract_part() {
+  echo "dd if=$1 of=$4 skip=$2 bs=512 count=$3 conv=sparse status=none"
     run_and_log_cmd "dd if=$1 of=$4 skip=$2 bs=512 count=$3 conv=sparse status=none"
 }
 
