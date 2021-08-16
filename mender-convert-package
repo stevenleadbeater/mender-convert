@@ -23,6 +23,9 @@ PLATFORM_PACKAGE_HOOKS=(platform_package)
 
 function trap_exit() {
     echo "mender-convert-package has finished. Cleaning up..."
+    if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
+      sudo umount -f work/boot/efi > /dev/null 2>&1 || true
+    fi
     sudo umount -f work/boot > /dev/null 2>&1 || true
     sudo umount -f work/rootfs > /dev/null 2>&1 || true
 }
@@ -79,6 +82,11 @@ output_dir=work
 
 boot_part=$(disk_boot_part)
 root_part=$(disk_root_part)
+efi_part=$(disk_efi_part)
+
+log_info "Boot partition found at $boot_part"
+log_info "Root partition found at $root_part"
+log_info "EFI partition found at $efi_part"
 
 # Sysfs device paths
 boot_part_device=$(disk_boot_part_device)
@@ -92,9 +100,15 @@ mkdir -p deploy
 # Create mount points
 mkdir -p work/boot
 mkdir -p work/rootfs
+if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
+  mkdir -p work/boot/efi
+fi
 
 sudo mount ${boot_part} work/boot
 sudo mount ${root_part} work/rootfs
+if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
+  sudo mount ${efi_part} work/boot/efi
+fi
 
 # Convert to 512 blocks
 disk_image_total_sectors=$(disk_mb_to_sectors ${MENDER_STORAGE_TOTAL_SIZE_MB})
