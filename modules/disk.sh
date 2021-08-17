@@ -61,7 +61,6 @@ disk_get_part_nums() {
 #  $3 - size (in 512 blocks)
 #  $4 - path to output file
 disk_extract_part() {
-  echo "dd if=$1 of=$4 skip=$2 bs=512 count=$3 conv=sparse status=none"
     run_and_log_cmd "dd if=$1 of=$4 skip=$2 bs=512 count=$3 conv=sparse status=none"
 }
 
@@ -147,17 +146,6 @@ disk_create_file_system_from_folder() {
     run_and_log_cmd "sudo umount work/output"
 }
 
-# Print path to the EFI partition filesystem image
-#
-disk_efi_part() {
-    if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-        efi_part="work/part-1.fs"
-    else
-        efi_part=""
-    fi
-    echo "${efi_part}"
-}
-
 # Print path to the boot partition filesystem image
 #
 disk_boot_part() {
@@ -179,11 +167,7 @@ disk_boot_part() {
     # boot part was extracted or generated.
     boot_part="work/boot-generated.vfat"
     if [ ! -f ${boot_part} ]; then
-        if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-            boot_part="work/part-2.fs"
-        else
-            boot_part="work/part-1.fs"
-        fi
+        boot_part="work/part-1.fs"
     fi
     echo "${boot_part}"
 }
@@ -193,17 +177,9 @@ disk_boot_part() {
 disk_root_part() {
     boot_part="work/boot-generated.vfat"
     if [ ! -f ${boot_part} ]; then
-        if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-            root_part="work/part-3.fs"
-        else
-            root_part="work/part-2.fs"
-        fi
+        root_part="work/part-2.fs"
     else
-        if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-            root_part="work/part-2.fs"
-        else
-            root_part="work/part-1.fs"
-        fi
+        root_part="work/part-1.fs"
     fi
     echo "${root_part}"
 }
