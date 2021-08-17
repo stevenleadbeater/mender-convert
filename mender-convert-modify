@@ -33,9 +33,6 @@ OVERLAY_MODIFY_HOOKS=(overlay_modify)
 
 function trap_exit() {
     echo "mender-convert-modify has finished. Cleaning up..."
-    if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-      sudo umount -f work/boot/efi
-    fi
     sudo umount -f work/boot
     sudo umount -f work/rootfs
 }
@@ -87,11 +84,6 @@ source modules/config.sh $(printf "%q " "${configs[@]}")
 
 boot_part=$(disk_boot_part)
 root_part=$(disk_root_part)
-efi_part=$(disk_efi_part)
-
-log_info "Boot partition found at $boot_part"
-log_info "Root partition found at $root_part"
-log_info "EFI partition found at $efi_part"
 
 # Sysfs device paths
 boot_part_device=$(disk_boot_part_device)
@@ -102,18 +94,13 @@ root_part_b_device=$(disk_root_part_b_device)
 # Create mount points
 mkdir -p work/boot
 mkdir -p work/rootfs
-if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-  mkdir -p work/boot/efi
-fi
 
 sudo mount ${boot_part} work/boot
 sudo mount ${root_part} work/rootfs
-if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-  sudo mount ${efi_part} work/boot/efi
-fi
-
 
 log_info "Installing Mender client and related files"
+
+deb_arch=$(probe_debian_arch_name)
 
 if [ "${MENDER_CLIENT_INSTALL}" = "y" ]; then
     log_info "Installing Mender client version ${MENDER_CLIENT_VERSION}"
@@ -213,12 +200,8 @@ fi
 
     run_and_log_cmd "sudo install -m 751 work/grub-editenv work/rootfs/usr/bin/"
 
-    if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-      run_and_log_cmd "sudo cp work/${efi_name} -P work/boot/efi/EFI/BOOT/${efi_target_name}"
-    else
-      run_and_log_cmd "sudo mkdir -p work/boot/EFI/BOOT"
-      run_and_log_cmd "sudo cp work/${efi_name} -P work/boot/EFI/BOOT/${efi_target_name}"
-    fi
+    run_and_log_cmd "sudo mkdir -p work/boot/EFI/BOOT"
+    run_and_log_cmd "sudo cp work/${efi_name} -P work/boot/EFI/BOOT/${efi_target_name}"
 fi
 
 run_and_log_cmd "wget --quiet -O work/mender-client-data-dir.service $MENDER_CLIENT_DATA_DIR_SERVICE_URL"
@@ -269,11 +252,7 @@ run_and_log_cmd "echo -n ${VERSION_STRING} | sudo tee work/rootfs/etc/mender/scr
 log_info "Installing a custom /etc/fstab (see ${MENDER_CONVERT_LOG_FILE} for more info)"
 
 if [ "${MENDER_GRUB_EFI_INTEGRATION}" == "y" ]; then
-    if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-      boot_part_mountpoint="/boot/efi/EFI"
-    else
-      boot_part_mountpoint="/boot/efi"
-    fi
+    boot_part_mountpoint="/boot/efi"
 else
     boot_part_mountpoint="/uboot"
 fi
@@ -295,12 +274,14 @@ fi
 
 log_info "Using boot partition device in fstab: $boot_part_device"
 log_info "Using data partition device in fstab: $data_part_device"
-if [ "${MENDER_HAS_EFI_PART}" == "y" ]; then
-  log_info "Using EFI partition device in fstab: $efi_part"
-fi
 
 sudo bash -c "cat <<- EOF > work/rootfs/etc/fstab
-/dev/sda / ext4 relatime,errors=remount-ro 0 1
+# stock fstab - you probably want to override this with a machine specific one
+/dev/root            /                    auto       ${MENDER_ROOT_PART_FSTAB_OPTS} 1  ${MENDER_ROOT_PART_FS_PASSNO}
+proc                 /proc                proc       defaults              0  0
+
+${boot_part_device}   ${boot_part_mountpoint}          auto       defaults,sync    0  0
+${data_part_device}   /data          auto       ${MENDER_DATA_PART_FSTAB_OPTS}      0  0
 EOF"
 
 #
