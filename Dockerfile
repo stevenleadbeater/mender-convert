@@ -17,6 +17,7 @@ RUN apt-get update && env DEBIAN_FRONTEND=noninteractive apt-get install -y \
 # For 'ar' command to unpack .deb
     binutils \
     xz-utils \
+    zstd \
 # to be able to detect file system types of extracted images
     file \
 # to copy files between rootfs directories
@@ -53,7 +54,9 @@ RUN apt-get update && env DEBIAN_FRONTEND=noninteractive apt-get install -y \
 # manipulate binary and hex
     xxd \
 # JSON power tool
-    jq
+    jq \
+# GRUB command line tools, primarily grub-probe
+    grub-common
 
 COPY --from=build /root/pxz/pxz /usr/bin/pxz
 
@@ -61,16 +64,22 @@ COPY --from=build /root/pxz/pxz /usr/bin/pxz
 RUN echo "Defaults        secure_path=\"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:$PATH\"" > /etc/sudoers.d/secure_path_override
 RUN chmod 0440 /etc/sudoers.d/secure_path_override
 
-# Turn off default filesystem feature which is supported in newer mke2fs tools,
-# but not in Ubuntu 16.04. The result is that mender-artifact can not be used to
-# modify the artifact. Once 16.04 goes out of support, this can probably be
-# removed.
-RUN sed -i -e 's/,metadata_csum//' /etc/mke2fs.conf
-
 RUN wget -q -O /usr/bin/mender-artifact https://downloads.mender.io/mender-artifact/$MENDER_ARTIFACT_VERSION/linux/mender-artifact \
     && chmod +x /usr/bin/mender-artifact
 
 WORKDIR /
 
-COPY docker-entrypoint.sh /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+COPY . /mender-convert
+
+RUN mkdir -p /mender-convert/work
+RUN mkdir -p /mender-convert/input
+RUN mkdir -p /mender-convert/deploy
+RUN mkdir -p /mender-convert/logs
+
+VOLUME ["/mender-convert/configs"]
+VOLUME ["/mender-convert/input"]
+VOLUME ["/mender-convert/deploy"]
+VOLUME ["/mender-convert/logs"]
+VOLUME ["/mender-convert/work"]
+
+ENTRYPOINT ["/mender-convert/docker-entrypoint.sh"]

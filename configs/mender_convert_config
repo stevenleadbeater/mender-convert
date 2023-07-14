@@ -32,6 +32,9 @@ MENDER_ARTIFACT_COMPRESSION="gzip"
 # this.
 MENDER_ENABLE_SYSTEMD=y
 
+# Set the fstab options for mounting the boot partition
+MENDER_BOOT_PART_FSTAB_OPTS="defaults,sync"
+
 # Custom mkfs options for creating the rootfs partition
 MENDER_ROOT_PART_MKFS_OPTS=""
 
@@ -146,9 +149,13 @@ MENDER_ADDON_CONFIGURE_VERSION="latest"
 # what you are doing.
 MENDER_STORAGE_URL="https://downloads.mender.io"
 
-# Mender APT repo, containing binary files, do not modify this unless you know
+# Mender APT repo url, containing binary files, do not modify this unless you know
 # what you are doing.
 MENDER_APT_REPO_URL="${MENDER_STORAGE_URL}/repos/debian"
+
+# Mender APT repo available distributions, do not modify this unless you know
+# what you are doing.
+MENDER_APT_REPO_DISTS="debian/buster debian/bullseye ubuntu/bionic ubuntu/focal ubuntu/jammy"
 
 # Mender GitHub organization URL prefix
 MENDER_GITHUB_ORG="https://github.com/mendersoftware"

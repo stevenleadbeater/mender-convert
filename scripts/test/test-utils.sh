@@ -1,3 +1,17 @@
+# Copyright 2023 Northern.tech AS
+#
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
 MENDER_ACCEPTANCE_URL="https://raw.githubusercontent.com/mendersoftware/meta-mender/master/tests/acceptance"
 
 WORKSPACE=${WORKSPACE:-./tests}
@@ -77,10 +91,13 @@ convert_and_test() {
   done
   pytest_extra_args=$@ # Optional
 
-  run_convert ${artifact_name} ${image_file} ${extra_args}
+  local ret=0
+
+  run_convert ${artifact_name} ${image_file} ${extra_args} || ret=$?
+
+  assert "${ret}" "0" "Failed to convert ${image_file}"
 
   local compression="${image_file##*.}"
-  local ret=0
 
   image_name=$(image_name_after_conversion "${image_file}" "${compression}" "${device_type}")
 
@@ -90,7 +107,7 @@ convert_and_test() {
 
   run_tests "${device_type}" "$(basename ${converted_image_uncompressed})" ${pytest_extra_args} || ret=$?
 
-  assert "${ret}" "0" "Failed to convert ${image_file}"
+  assert "${ret}" "0" "Tests failed for ${image_file}"
 
 }
 
@@ -138,9 +155,8 @@ run_tests() {
     --board-type="${device_type}" \
     --mender-image="${converted_image_name}.sdimg" \
     --sdimg-location="${MENDER_CONVERT_DIR}/deploy" \
-    --ssh-priv-key="./ssh-priv-key/key" \
-    --qemu-wrapper="../scripts/test/mender-convert-qemu" \
-    mender-image-tests \
+    --ssh-priv-key="${MENDER_CONVERT_DIR}/tests/ssh-priv-key/key" \
+    --qemu-wrapper="${MENDER_CONVERT_DIR}/scripts/test/mender-convert-qemu" \
     ${pytest_extra_args}
 
   exitcode=$?
@@ -163,15 +179,15 @@ prepare_ssh_keys() {
     sudo chown -R root:root tests/ssh-public-key-overlay/root
   fi
   if [ "$(stat -c %a tests/ssh-public-key-overlay/root)" != "755" ]; then
-    chmod 755 tests/ssh-public-key-overlay/root
+    sudo chmod 755 tests/ssh-public-key-overlay/root
   fi
   if [ "$(stat -c %a tests/ssh-public-key-overlay/root/.ssh)" != "755" ]; then
-    chmod 700 tests/ssh-public-key-overlay/root/.ssh
+    sudo chmod 700 tests/ssh-public-key-overlay/root/.ssh
   fi
   if [ "$(stat -c %a tests/ssh-public-key-overlay/root/.ssh/authorized_keys)" != "755" ]; then
-    chmod 600 tests/ssh-public-key-overlay/root/.ssh/authorized_keys
+    sudo chmod 600 tests/ssh-public-key-overlay/root/.ssh/authorized_keys
   fi
   if [ "$(stat -c %a tests/ssh-priv-key/key)" != "600" ]; then
-    chmod 600 tests/ssh-priv-key/key
+    sudo chmod 600 tests/ssh-priv-key/key
   fi
 }

@@ -21,6 +21,19 @@ on your device.
 
 ![Mender logo](https://github.com/mendersoftware/mender/raw/master/mender_logo.png)
 
+## Requisites
+
+`mender-convert` is supported on the following development platform(s):
+
+	- Ubuntu 18.04 x86, 64bit
+
+Other platforms may work, but are not under active testing. Patches to add additional
+platforms or fix compatibility issues are welcome.
+
+The storage used during the process, specifically the work directories (usually below the clone of
+`mender-convert`) and the output directory should be located on local, Unix-style filesystem.
+Using network storage or emulated filesystems might cause permission or owner issues.
+
 
 ## Getting started
 
@@ -31,8 +44,38 @@ For more detailed information about `mender-convert` please visit the
 [Debian family](https://docs.mender.io/artifacts/debian-family) section in
 [the Mender documentation](https://docs.mender.io/).
 
+## Included configurations
+
+### Core configurations
+
+These configurations are officially supported.
+
+| Configuration | Supported OS / hardware |
+| :------------ | :---------------------- |
+| generic_x86-64_config | Generic x86, 64bit distribution *use this as a starting point only!*  |
+| raspberrypi0w_config | RaspberryPi 0w, Raspbian 32bit |
+| raspberrypi3_config | RaspberryPi 3, Raspbian 32bit |
+| raspberrypi4_config | RaspberryPi 4, Raspbian 32bit |
+| raspberrypi4_ubuntu_config | RaspberryPi 4, Ubuntu 32bit |
+
+### Contributed configurations
+
+These configurations have been submitted by community contributors.
+
+| Configuration | Supported OS / hardware |
+| :------------ | :---------------------- |
+| beaglebone_black_debian_emmc_config | BeagleBone Black 4GB, Debian 32bit on internal eMMC storage |
+| beaglebone_black_debian_sdcard_config | BeagleBone Black, Debian 32bit on external SD card storage |
+| comfile_pi_config | Comfile Pi, Raspbian 32bit |
+| rockpro64_emmc_config | RockPro64, Debian 32bit on internal eMMC storage |
+| rockpro64_sd_config | BeagleBone Black, Debian 32bit on external SD card storage |
+
+## Example usage: Raspberry Pi 3, Raspbian 32bit
 
 ### Prepare image and configuration
+
+The following steps give a quick start using Raspbian. For a more detailed guide,
+especially concerning version compatibilities, please visit [the the corresponding thread](https://hub.mender.io/t/raspberry-pi-3-model-b-b-raspbian/140) on the Mender Hub.
 
 Download the raw Raspberry Pi disk image into a subdirectory input:
 
@@ -109,18 +152,35 @@ necessary dependencies.
 Run mender-convert from inside the container with your desired options, e.g.
 
 ```bash
+mkdir -p input/image
+cp $PATH_TO_DISK_IMAGE/$INPUT_DISK_IMAGE input/image
+
+mkdir -p input/config
+cp $PATH_TO_MY_OWN_CONFIG/$CUSTOM_CONFIG input/config
+
 MENDER_ARTIFACT_NAME=release-1 ./docker-mender-convert \
-   --disk-image input/$INPUT_DISK_IMAGE \
+   --disk-image input/image/$INPUT_DISK_IMAGE \
    --config configs/raspberrypi3_config \
-   --overlay rootfs_overlay_demo/
+   --config input/config/$CUSTOM_CONFIG \
+   --overlay rootfs_overlay_demo
 ```
 
+The container will use the `work/` directory as a temporary area to unpack and
+customize the image's content. You can customize the work directory path
+by setting the `WORK_DIRECTORY` env variable. To reduce the time required to
+perform the conversion, you can use tempfs or ramfs mount points.
+
 Conversion will take 10-30 minutes, depending on image size and resources
-available. You can watch `WORKDIR/convert.log` for progress and diagnostics
-information.
+available. You can watch `log/convert.log.XXXXX` for progress and diagnostics
+information. The exact log file path is printed before the conversion starts.
 
 After it finishes, you can find your images in the `deploy` directory on your
 host machine!
+
+#### Troubleshooting
+
+A continuously expanded list of possible problems and how to address those is
+maintained in the [Mender documentation](https://docs.mender.io/troubleshoot/mender-client)
 
 ## Using mender-convert without Docker
 
@@ -139,13 +199,13 @@ Start the conversion process with:
 MENDER_ARTIFACT_NAME=release-1 ./mender-convert \
    --disk-image input/$INPUT_DISK_IMAGE \
    --config configs/raspberrypi3_config \
-   --overlay rootfs_overlay_demo/
+   --overlay rootfs_overlay_demo
 ```
 
 **NOTE!** You will be prompted to enter `sudo` password during the conversion
 process. This is required to be able to loopback mount images and for modifying
 them. Our recommendation is to use the provided Docker container, to run the
-tool in a isolated environment.
+tool in an isolated environment.
 
 -------------------------------------------------------------------------------
 
@@ -177,7 +237,7 @@ issue. We thank you in advance for your cooperation.
 * Follow us on [Twitter](https://twitter.com/mender_io). Please
   feel free to tweet us questions.
 * Fork us on [Github](https://github.com/mendersoftware)
-* Create an issue in the [bugtracker](https://tracker.mender.io/projects/MEN)
+* Create an issue in the [bugtracker](https://northerntech.atlassian.net/projects/MEN)
 * Email us at [contact@mender.io](mailto:contact@mender.io)
 * Connect to the [#mender IRC channel on Libera](https://web.libera.chat/?#mender)
 

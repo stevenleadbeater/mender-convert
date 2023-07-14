@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
+# Copyright 2022 Northern.tech AS
 #
-# Copyright 2019 Northern.tech AS
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+#        http://www.apache.org/licenses/LICENSE-2.0
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
 
 # Prints target architecture
 #
@@ -37,8 +36,10 @@ probe_arch() {
     fi
 
     target_arch="unknown"
-    if grep -q x86-64 <<< "${file_info}"; then
-        target_arch="x86-64"
+    if grep -Eq "ELF 64-bit.*x86-64" <<< "${file_info}"; then
+        target_arch="x86_64"
+    elif grep -Eq "ELF 32-bit.*386" <<< "${file_info}"; then
+        target_arch="i386"
     elif grep -Eq "ELF 32-bit.*ARM" <<< "${file_info}"; then
         target_arch="arm"
     elif grep -Eq "ELF 64-bit.*aarch64" <<< "${file_info}"; then
@@ -54,10 +55,10 @@ probe_arch() {
 # No input parameters and these work on the assumption that boot and root parts
 # are mounted at work/boot and work/rootfs
 probe_grub_efi_name() {
-    efi_name=""
-    arch=$(probe_arch)
+    local efi_name=""
+    local -r arch=$(probe_arch)
     case "${arch}" in
-        "x86-64")
+        "x86_64")
             efi_name="grub-efi-bootx64.efi"
             ;;
         "arm")
@@ -73,6 +74,27 @@ probe_grub_efi_name() {
     echo "$efi_name"
 }
 
+# Prints GRUB grub-install target name depending on target architecture
+#
+# No input parameters and these work on the assumption that boot and root parts
+# are mounted at work/boot and work/rootfs
+probe_grub_install_target() {
+    local target_name=""
+    local -r arch=$(probe_arch)
+    case "${arch}" in
+        "x86_64")
+            target_name="x86_64-efi"
+            ;;
+        "i386")
+            target_name="i386-efi"
+            ;;
+        *)
+            log_fatal "Unsupported arch: ${arch}"
+            ;;
+    esac
+    echo "$target_name"
+}
+
 # Prints Debian arch name depending on target architecture
 #
 # No input parameters and these work on the assumption that boot and root parts
@@ -81,7 +103,7 @@ probe_debian_arch_name() {
     deb_arch=""
     arch=$(probe_arch)
     case "${arch}" in
-        "x86-64")
+        "x86_64")
             deb_arch="amd64"
             ;;
         "arm")
@@ -97,6 +119,29 @@ probe_debian_arch_name() {
     echo "${deb_arch}"
 }
 
+# Prints Debian distro name based on ID from /etc/os-release
+#
+# Special handling for raspbian, where ID_LIKE is used instead
+#
+# No input parameters and these work on the assumption that boot and root parts
+# are mounted at work/boot and work/rootfs
+probe_debian_distro_name() {
+    local distro_name="$(. work/rootfs/etc/os-release && echo "$ID")"
+    if [[ "$distro_name" == "raspbian" ]]; then
+        distro_name="$(. work/rootfs/etc/os-release && echo "$ID_LIKE")"
+    fi
+    echo "${distro_name}"
+}
+
+# Prints Debian distro codename based on VERSION_CODENAME from /etc/os-release
+#
+# No input parameters and these work on the assumption that boot and root parts
+# are mounted at work/boot and work/rootfs
+probe_debian_distro_codename() {
+    local -r distro_codename="$(. work/rootfs/etc/os-release && echo "$VERSION_CODENAME")"
+    echo "${distro_codename}"
+}
+
 # Prints GRUB EFI target name depending on target architecture
 #
 # This is what the file name should be when put on target boot part.
@@ -104,10 +149,10 @@ probe_debian_arch_name() {
 # No input parameters and these work on the assumption that boot and root parts
 # are mounted at work/boot and work/rootfs
 probe_grub_efi_target_name() {
-    efi_target_name=""
-    arch=$(probe_arch)
+    local efi_target_name=""
+    local -r arch=$(probe_arch)
     case "$arch" in
-        "x86-64")
+        "x86_64")
             efi_target_name="bootx64.efi"
             ;;
         "arm")
@@ -128,7 +173,7 @@ probe_grub_efi_target_name() {
 #  $1 - directory in which the search is performed
 #
 probe_kernel_image() {
-    kernel_image_path=""
+    local kernel_image_path=""
     for image in vmlinuz zImage bzImage; do
         # Linux kernel image type and naming varies between different platforms.
         #
@@ -165,7 +210,7 @@ probe_kernel_image() {
 #  $1 - directory in which the search is performed
 #
 probe_initrd_image() {
-    initrd_image_path=""
+    local initrd_image_path=""
     for image in initramfs initrd; do
         # initrd/initramfs naming varies between different platforms.
         #
@@ -319,5 +364,18 @@ is_efi_compatible_kernel() {
             :
             ;;
     esac
+    return 0
+}
+
+supports_grub_d_and_efi() {
+    test -d "$1"/EFI || return 1
+    test -d "$2"/boot/efi || return 1
+    test -d "$2"/etc/grub.d || return 1
+
+    # Because we are executing programs inside a chroot in the image, we cannot
+    # currently convert non-native architectures to use grub.d integration. See
+    # relevant section on chroot inside grub_install_grub_d_config.
+    [ "$(probe_arch)" = "$(uname -m)" ] || return 1
+
     return 0
 }

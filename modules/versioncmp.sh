@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Copyright 2022 Northern.tech AS
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +12,22 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-# Print the mender convert version
+source modules/log.sh
+source modules/probe.sh .
+
+# Compare the version of a string to a given minimum version requirement
 #
-git_mender_convert_version() {
-    git describe --tags --dirty --exact-match 2> /dev/null || git rev-parse --short HEAD
+# NOTE: Also works for 'master', in that sort does sort it correctly by accident.
+#       The same goes for all other branches/names, which are not semver.
+#
+#  $1 - Minimum required version
+#  $2 - Version string
+#
+# @return - bool
+#
+function minimum_required_version()  {
+    if [[ $# -ne 2 ]]; then
+        log_fatal "minimum_required_version() requires two parameters"
+    fi
+    [[ "$1" == "$(printf "$1\n$2" | sort --version-sort | head --lines 1)" ]]
 }
