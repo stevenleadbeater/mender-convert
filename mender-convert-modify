@@ -98,6 +98,11 @@ mkdir -p work/rootfs
 sudo mount ${boot_part} work/boot
 sudo mount ${root_part} work/rootfs
 
+log_info "Creating state folder in the data partition for Mender client"
+run_and_log_cmd "sudo mkdir -p work/rootfs/data/mender"
+run_and_log_cmd "sudo mkdir -p work/rootfs/var/lib"
+run_and_log_cmd "sudo ln -sf /data/mender work/rootfs/var/lib"
+
 log_info "Installing Mender client and related files"
 
 deb_arch=$(probe_debian_arch_name)
@@ -209,10 +214,6 @@ run_and_log_cmd "sudo install -m 644 work/mender-client-data-dir.service work/ro
 run_and_log_cmd "sudo mkdir -p work/rootfs/lib/systemd/system/mender-client.service.wants"
 run_and_log_cmd "sudo ln -sf /lib/systemd/system/mender-client-data-dir.service \
     work/rootfs/lib/systemd/system/mender-client.service.wants/mender-client-data-dir.service"
-
-run_and_log_cmd "sudo mkdir -p work/rootfs/data/mender"
-run_and_log_cmd "sudo mkdir -p work/rootfs/var/lib"
-run_and_log_cmd "sudo ln -sf /data/mender work/rootfs/var/lib/mender"
 
 log_info "Using root device A in mender.conf: $root_part_a_device"
 log_info "Using root device B in mender.conf: $root_part_b_device"
