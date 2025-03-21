@@ -98,21 +98,14 @@ mkdir -p work/rootfs
 sudo mount ${boot_part} work/boot
 sudo mount ${root_part} work/rootfs
 
-sleep 1
 if [ ! -d work/rootfs/boot ]; then
   log_info "Copying work/boot to work/rootfs/boot"
   sudo cp -r work/boot/boot work/rootfs
   sudo cp -r work/boot/efi work/rootfs/boot
 fi
 
-log_info "Creating state folder in the data partition for Mender client"
-run_and_log_cmd "sudo mkdir -p work/rootfs/data/mender"
-run_and_log_cmd "sudo mkdir -p work/rootfs/var/lib"
-run_and_log_cmd "sudo ln -sf /data/mender work/rootfs/var/lib"
 
 log_info "Installing Mender client and related files"
-
-deb_arch=$(probe_debian_arch_name)
 
 if [ "${MENDER_CLIENT_INSTALL}" = "y" ]; then
     log_info "Installing Mender client version ${MENDER_CLIENT_VERSION}"
@@ -178,49 +171,18 @@ if [ "${MENDER_GRUB_EFI_INTEGRATION}" == "y" ]; then
 
 fi
 
-    cd work/grub-mender-grubenv-${MENDER_GRUBENV_VERSION}
-    run_and_log_cmd "make 2>&1"
-    run_and_log_cmd "sudo make DESTDIR=../ BOOT_DIR=boot install-boot-files"
-    run_and_log_cmd "sudo make DESTDIR=../rootfs install-tools"
-    cd - > /dev/null 2>&1
-
-    # Remove conflicting boot files. These files do not necessarily effect the
-    # functionality, but lets get rid of them to avoid confusion.
-    #
-    # There is no Mender integration for EFI boot or systemd-boot.
-    sudo rm -rf work/boot/loader work/rootfs/boot/loader
-    sudo rm -rf work/boot/EFI/Linux
-    sudo rm -rf work/boot/EFI/systemd
-    sudo rm -rf work/boot/NvVars
-    for empty_dir in $(
-                     cd work/boot
-                                   find . -maxdepth 1 -type d -empty
-    ); do
-        sudo rmdir work/boot/$empty_dir
-    done
-
-    log_info "Installing GRUB"
-
-    arch=$(probe_arch)
-    efi_name=$(probe_grub_efi_name)
-    efi_target_name=$(probe_grub_efi_target_name)
-
-    log_info "GRUB EFI: ${efi_target_name}"
-
-    run_and_log_cmd "wget -Nq ${MENDER_GRUB_BINARY_STORAGE_URL}/${arch}/${efi_name} -P work/"
-    run_and_log_cmd "wget -Nq ${MENDER_GRUB_BINARY_STORAGE_URL}/${arch}/grub-editenv -P work/"
-
-    run_and_log_cmd "sudo install -m 751 work/grub-editenv work/rootfs/usr/bin/"
-
-    run_and_log_cmd "sudo mkdir -p work/boot/EFI/BOOT"
-    run_and_log_cmd "sudo cp work/${efi_name} -P work/boot/EFI/BOOT/${efi_target_name}"
-fi
+MENDER_CLIENT_DATA_DIR_SERVICE_URL="https://raw.githubusercontent.com/mendersoftware/\
+meta-mender/e05cde10fde3646a78081709e717fb42a6c5ba44/meta-mender-core/recipes-mender/mender-client/files/mender-client-data-dir.service"
 
 run_and_log_cmd "wget --quiet -O work/mender-client-data-dir.service $MENDER_CLIENT_DATA_DIR_SERVICE_URL"
 run_and_log_cmd "sudo install -m 644 work/mender-client-data-dir.service work/rootfs/lib/systemd/system/mender-client-data-dir.service"
 run_and_log_cmd "sudo mkdir -p work/rootfs/lib/systemd/system/mender-client.service.wants"
 run_and_log_cmd "sudo ln -sf /lib/systemd/system/mender-client-data-dir.service \
     work/rootfs/lib/systemd/system/mender-client.service.wants/mender-client-data-dir.service"
+
+run_and_log_cmd "sudo mkdir -p work/rootfs/data/mender"
+run_and_log_cmd "sudo mkdir -p work/rootfs/var/lib"
+run_and_log_cmd "sudo ln -sf /data/mender work/rootfs/var/lib"
 
 log_info "Using root device A in mender.conf: $root_part_a_device"
 log_info "Using root device B in mender.conf: $root_part_b_device"
@@ -283,14 +245,17 @@ fi
 log_info "Using boot partition device in fstab: $boot_part_device"
 log_info "Using data partition device in fstab: $data_part_device"
 
-sudo bash -c "cat <<- EOF > work/rootfs/etc/fstab
-# stock fstab - you probably want to override this with a machine specific one
+fstab=$(sed '/\/boot/d' work/rootfs/etc/fstab)
+fstab=$(sed '/.*\s\/\s.*/d' <<< "$fstab")
+cat <<- EOF > work/rootfs/etc/fstab
+${boot_part_device}   ${boot_part_mountpoint}          auto       ${MENDER_BOOT_PART_FSTAB_OPTS}    0  0
 /dev/root            /                    auto       ${MENDER_ROOT_PART_FSTAB_OPTS} 1  ${MENDER_ROOT_PART_FS_PASSNO}
-proc                 /proc                proc       defaults              0  0
 
-${boot_part_device}   ${boot_part_mountpoint}          auto       defaults,sync    0  0
 ${data_part_device}   /data          auto       ${MENDER_DATA_PART_FSTAB_OPTS}      0  0
-EOF"
+
+# entries kept from original fstab
+$fstab
+EOF
 
 #
 # Make sure to re-label rootfs when selinux is in enforcing mode
