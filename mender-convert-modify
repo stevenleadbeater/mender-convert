@@ -98,6 +98,13 @@ mkdir -p work/rootfs
 sudo mount ${boot_part} work/boot
 sudo mount ${root_part} work/rootfs
 
+sleep 1
+if [ ! -d work/rootfs/boot ]; then
+  log_info "Copying work/boot to work/rootfs/boot"
+  sudo cp -r work/boot/boot work/rootfs
+  sudo cp -r work/boot/efi work/rootfs/boot
+fi
+
 log_info "Creating state folder in the data partition for Mender client"
 run_and_log_cmd "sudo mkdir -p work/rootfs/data/mender"
 run_and_log_cmd "sudo mkdir -p work/rootfs/var/lib"

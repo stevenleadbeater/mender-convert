@@ -21,13 +21,21 @@ probe_arch() {
     # --dereference, means to follow symlinks because 'ls' could be a symlink
     # to busybox
     file_info=""
-    for location in bin/ls usr/bin/ls; do
-        if [ -L work/rootfs/${location} ]; then
-            location=$(readlink work/rootfs/${location})
+    for location in bin usr/bin; do
+        if [ -L work/rootfs/${location}/ls ]; then
+            link_location=$(readlink work/rootfs/${location}/ls)
+            log_info "Found link_location ${link_location}"
         fi
-        if [ -e work/rootfs/${location} ]; then
-            file_info=$(file -b --dereference work/rootfs/${location})
+        if [ -e work/rootfs/${link_location} ]; then
+            file_info=$(file -b --dereference work/rootfs/${link_location})
+            log_info "Found file_info at work/rootfs/${link_location}"
             break
+        elif [ -e work/rootfs/${location}/${link_location} ]; then
+            file_info=$(file -b work/rootfs/${location}/${link_location})
+            log_info "Found file_info at work/rootfs/${location}/${link_location}"
+            break
+        else
+            log_info "No file_info found at work/rootfs/${location}/${link_location}"
         fi
     done
 
